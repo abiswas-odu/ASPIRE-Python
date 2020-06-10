@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from aspire.utils.numeric import xp
 from scipy.linalg import sqrtm
 from scipy.linalg import solve
 from numpy.linalg import inv
@@ -10,6 +11,7 @@ from aspire.utils.matrix import shrink_covar
 from aspire.utils.optimize import fill_struct, conj_grad
 from aspire.utils import ensure
 from aspire.utils.filters import RadialCTFFilter
+from aspire.utils.numeric import xp
 
 logger = logging.getLogger(__name__)
 
@@ -201,17 +203,17 @@ class RotCov2D:
         covar_coeff = BlkDiagMatrix.zeros_like(ctf_fb[0])
 
         def precond_fun(S, x):
-            p = np.size(S, 0)
-            ensure(np.size(x) == p*p, 'The sizes of S and x are not consistent.')
+            p = xp.size(S, 0)
+            ensure(xp.size(x) == p*p, 'The sizes of S and x are not consistent.')
             x = m_reshape(x, (p, p))
             y = S @ x @ S
             y = m_reshape(y, (p ** 2,))
             return y
 
         def apply(A, x):
-            p = np.size(A[0], 0)
+            p = xp.size(A[0], 0)
             x = m_reshape(x, (p, p))
-            y = np.zeros_like(x)
+            y = xp.zeros_like(x)
             for k in range(0, len(A)):
                     y = y + A[k] @ x @ A[k].T
             y = m_reshape(y, (p ** 2,))
@@ -224,8 +226,10 @@ class RotCov2D:
             p = np.size(A_ell[0], 0)
             b_ell = m_reshape(b[ell], (p ** 2,))
             S = inv(M[ell])
-            cg_opt["preconditioner"] = lambda x: precond_fun(S, x)
-            covar_coeff_ell, _, _ = conj_grad(lambda x: apply(A_ell, x), b_ell, cg_opt)
+            S_cu = xp.asarray(S)
+            cg_opt["preconditioner"] = lambda x: precond_fun(S_cu, x)
+            A_ell_cu = xp.asarray(A_ell)
+            covar_coeff_ell, _, _ = conj_grad(lambda x: apply(A_ell_cu, x), b_ell, cg_opt)
             covar_coeff[ell] = m_reshape(covar_coeff_ell, (p, p))
 
         return covar_coeff
